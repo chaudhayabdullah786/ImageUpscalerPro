@@ -28,11 +28,12 @@ def init_db():
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS content (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        section_id TEXT UNIQUE NOT NULL,
+        section_id TEXT NOT NULL,
         content_key TEXT NOT NULL,
         content_value TEXT NOT NULL,
         content_type TEXT DEFAULT 'text',
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(section_id, content_key)
     )''')
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS images (

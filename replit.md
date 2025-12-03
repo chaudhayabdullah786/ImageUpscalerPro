@@ -1,75 +1,146 @@
-# Single-Page Website Project
+# Single-Page Website with Admin Panel
 
 ## Overview
-A lightweight, responsive single-page website built with pure HTML5 and CSS3. The project follows modern web development best practices with minimal JavaScript usage.
+A lightweight, responsive single-page website built with pure HTML5 and CSS3, combined with a Flask backend admin panel for managing website content. No CMS or heavy frameworks—just clean, fast code.
 
 ## Project Structure
 ```
 /
-├── index.html      # Main HTML file with semantic structure
-├── styles.css      # Complete CSS styling with responsive design
-├── server.py       # Simple Python HTTP server for development
-└── replit.md       # Project documentation
+├── app.py                    # Flask backend with admin functionality
+├── templates/
+│   ├── index.html           # Main website page
+│   ├── admin_login.html     # Admin login page
+│   └── admin_dashboard.html # Admin content editor
+├── static/
+│   ├── styles.css           # Main website styles
+│   ├── admin.css            # Admin panel styles
+│   └── admin.js             # Admin panel interactivity
+├── website.db               # SQLite database (auto-created)
+└── replit.md                # Project documentation
 ```
 
 ## Features
-- **Semantic HTML5**: Clean, accessible markup structure
-- **CSS3 Styling**: Modern flexbox and grid layouts
-- **Responsive Design**: Mobile-first approach with breakpoints for tablet and desktop
-- **CSS-Only Navigation**: Hamburger menu without JavaScript
-- **Smooth Scroll**: Native CSS smooth scrolling behavior
-- **Accessibility**: ARIA labels, semantic tags, and reduced motion support
-- **Performance**: No external dependencies, inline SVG icons
 
-## Sections
-1. **Header**: Fixed navigation with responsive hamburger menu
-2. **Hero**: Full-viewport welcome section with call-to-action
-3. **About**: Company information with feature list
-4. **Services**: 4-column grid showcasing offerings
-5. **Portfolio**: Project showcase with hover effects
-6. **Contact**: Contact form with HTML5 validation
-7. **Footer**: Brand info, quick links, and social icons
+### Frontend Website
+- Semantic HTML5 with clean structure
+- Responsive CSS3 design (mobile, tablet, desktop)
+- Smooth scroll navigation
+- CSS-only hamburger menu
+- No external dependencies
+- Fast page load times
 
-## CSS Features
-- CSS Custom Properties (variables) for consistent theming
-- Flexbox and CSS Grid for layouts
-- CSS transitions and transforms for animations
-- Media queries for responsive breakpoints
-- Prefers-reduced-motion support
+### Admin Panel
+- Secure login system (default: admin/admin123)
+- Real-time content editing (Hero, About, Contact sections)
+- Auto-save functionality
+- Clean, intuitive admin interface
+- SQLite database for persistent storage
 
-## Development
-The server runs on port 5000 using Python's built-in HTTP server with cache-control headers disabled for development.
+## Getting Started
 
-## Customization Guide
+### Running the App
+The Flask app automatically starts on port 5000. Just visit the root URL to see your website.
+
+### Accessing the Admin Panel
+1. Navigate to `/admin/login`
+2. Login with:
+   - **Username:** admin
+   - **Password:** admin123
+3. Edit website content in real-time
+
+## Admin Features
+
+### Content Sections Available
+- **Hero Section:** Main banner title and subtitle
+- **About Section:** Section title and two paragraphs
+- **Contact Section:** Section title and subtitle
+
+### How It Works
+1. Edit any field in the admin dashboard
+2. Changes auto-save to the database
+3. Refresh the website to see updates
+4. All changes persist in the SQLite database
+
+## Customization
+
+### Changing Admin Credentials
+Edit `app.py` line 49 to change the default admin password:
+```python
+cursor.execute("INSERT INTO admins (username, password) VALUES (?, ?)", ('admin', generate_password_hash('NEW_PASSWORD_HERE')))
+```
+
+### Adding New Content Sections
+1. Add new fields in the `default_content` dictionary (line 51-64)
+2. Add HTML fields in `templates/admin_dashboard.html`
+3. Add corresponding form fields with `data-section` and `data-key` attributes
 
 ### Changing Colors
-Edit the CSS custom properties in `:root` at the top of `styles.css`:
+Edit CSS variables in `static/styles.css` `:root` section:
 ```css
 :root {
     --primary-color: #6366f1;    /* Main brand color */
-    --primary-dark: #4f46e5;     /* Darker variant for hover states */
-    --secondary-color: #1e293b;  /* Text and footer background */
+    --primary-dark: #4f46e5;     /* Darker variant */
+    --secondary-color: #1e293b;  /* Text color */
 }
 ```
 
-### Adding New Sections
-1. Add HTML section in `index.html` following the pattern:
-```html
-<section class="section-name" id="section-id">
-    <div class="container">
-        <h2 class="section-title">Section Title</h2>
-        <!-- Content here -->
-    </div>
-</section>
-```
-2. Add corresponding styles in `styles.css`
-3. Update navigation links in header and footer
+## Database Schema
 
-### Responsive Breakpoints
-- Desktop: > 1024px
-- Tablet: 768px - 1024px
-- Mobile: < 768px
-- Small Mobile: < 480px
+### Content Table
+```sql
+- id: Primary key
+- section_id: Section name (hero, about, contact)
+- content_key: Field name (title, subtitle, text1, etc.)
+- content_value: The actual content text
+- content_type: Type of content (text, textarea)
+- updated_at: Last modification timestamp
+```
+
+### Admins Table
+```sql
+- id: Primary key
+- username: Admin username
+- password: Hashed password
+- created_at: Account creation timestamp
+```
+
+## Security Notes
+- Default admin credentials should be changed in production
+- Use environment variable for SESSION_SECRET
+- Database stores passwords hashed with werkzeug security
+- Session-based authentication protects admin routes
+
+## Performance
+- Pure HTML/CSS with minimal JavaScript
+- SQLite database for lightweight storage
+- No external API calls
+- No framework bloat—just Flask essentials
+- Optimized asset delivery with Flask static files
 
 ## Recent Changes
-- December 2024: Initial project setup with all core sections
+- December 2024: Complete website with admin panel built
+- Flask backend with SQLite database
+- Admin login and content management system
+- Real-time content updates on live website
+
+## API Endpoints
+
+### Public Routes
+- `GET /` - Main website
+- `GET /api/content` - Get all website content as JSON
+- `GET /admin/login` - Admin login page
+- `POST /admin/login` - Submit admin credentials
+
+### Admin Routes (Requires Authentication)
+- `GET /admin` - Admin dashboard
+- `GET /admin/logout` - Logout
+- `POST /api/admin/content` - Update content (JSON)
+
+## Deployment Notes
+When deploying to production:
+1. Set `SESSION_SECRET` environment variable
+2. Change default admin credentials
+3. Use a production WSGI server (gunicorn, etc.)
+4. Set Flask `debug=False`
+5. Configure proper database backups
+

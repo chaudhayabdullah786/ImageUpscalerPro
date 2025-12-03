@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Professional single-page website - Modern, responsive, and lightweight design">
     <title>Modern Single Page Website</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <header class="header" id="header">
@@ -21,6 +21,7 @@
                 <li><a href="#services" class="nav-link">Services</a></li>
                 <li><a href="#portfolio" class="nav-link">Portfolio</a></li>
                 <li><a href="#contact" class="nav-link">Contact</a></li>
+                <li><a href="/admin/login" class="nav-link">Admin</a></li>
             </ul>
         </nav>
     </header>
@@ -28,19 +29,19 @@
     <main>
         <section class="hero" id="home">
             <div class="hero-content">
-                <h1 class="hero-title">Welcome to Our Website</h1>
-                <p class="hero-subtitle">We create beautiful, fast, and responsive web experiences</p>
+                <h1 class="hero-title">{{ content.get('hero', {}).get('title', 'Welcome to Our Website') }}</h1>
+                <p class="hero-subtitle">{{ content.get('hero', {}).get('subtitle', 'We create beautiful, fast, and responsive web experiences') }}</p>
                 <a href="#contact" class="btn btn-primary">Get Started</a>
             </div>
         </section>
 
         <section class="about" id="about">
             <div class="container">
-                <h2 class="section-title">About Us</h2>
+                <h2 class="section-title">{{ content.get('about', {}).get('title', 'About Us') }}</h2>
                 <div class="about-content">
                     <div class="about-text">
-                        <p>We are a team of passionate developers dedicated to creating lightweight, high-performance websites. Our focus is on clean code, modern design, and exceptional user experiences.</p>
-                        <p>With years of experience in web development, we understand the importance of speed, accessibility, and responsive design. We build websites that work seamlessly across all devices and browsers.</p>
+                        <p>{{ content.get('about', {}).get('text1', 'We are a team of passionate developers dedicated to creating lightweight, high-performance websites. Our focus is on clean code, modern design, and exceptional user experiences.') }}</p>
+                        <p>{{ content.get('about', {}).get('text2', 'With years of experience in web development, we understand the importance of speed, accessibility, and responsive design. We build websites that work seamlessly across all devices and browsers.') }}</p>
                         <ul class="about-list">
                             <li>Clean, semantic HTML5 code</li>
                             <li>Modern CSS3 styling techniques</li>
@@ -177,11 +178,11 @@
 
         <section class="contact" id="contact">
             <div class="container">
-                <h2 class="section-title">Get In Touch</h2>
+                <h2 class="section-title">{{ content.get('contact', {}).get('title', 'Get In Touch') }}</h2>
                 <div class="contact-content">
                     <div class="contact-info">
-                        <h3>Contact Information</h3>
-                        <p>Ready to start your project? Reach out to us and let's create something amazing together.</p>
+                        <h3>{{ content.get('contact', {}).get('title', 'Get In Touch') }}</h3>
+                        <p>{{ content.get('contact', {}).get('subtitle', 'Ready to start your project? Reach out to us and let\'s create something amazing together.') }}</p>
                         <ul class="contact-details">
                             <li>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

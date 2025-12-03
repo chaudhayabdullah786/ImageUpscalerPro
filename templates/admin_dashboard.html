@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>Admin Panel</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#hero-section" class="nav-item active" data-section="hero">Hero Section</a>
+                <a href="#about-section" class="nav-item" data-section="about">About Section</a>
+                <a href="#contact-section" class="nav-item" data-section="contact">Contact Section</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Website Content Manager</h1>
+                <p>Edit website content in real-time</p>
+            </div>
+
+            <div class="admin-content">
+                <!-- Hero Section -->
+                <section id="hero-section" class="content-section active">
+                    <div class="section-header">
+                        <h2>Hero Section</h2>
+                        <span class="section-badge">Main Banner</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hero-title">Hero Title</label>
+                        <input type="text" id="hero-title" class="editable-field" data-section="hero" data-key="title" 
+                               value="{{ content.get('hero', {}).get('title', '') }}">
+                        <span class="char-count">0 / 100</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hero-subtitle">Hero Subtitle</label>
+                        <input type="text" id="hero-subtitle" class="editable-field" data-section="hero" data-key="subtitle" 
+                               value="{{ content.get('hero', {}).get('subtitle', '') }}">
+                        <span class="char-count">0 / 150</span>
+                    </div>
+                </section>
+
+                <!-- About Section -->
+                <section id="about-section" class="content-section">
+                    <div class="section-header">
+                        <h2>About Section</h2>
+                        <span class="section-badge">Company Info</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="about-title">Section Title</label>
+                        <input type="text" id="about-title" class="editable-field" data-section="about" data-key="title" 
+                               value="{{ content.get('about', {}).get('title', '') }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="about-text1">Paragraph 1</label>
+                        <textarea id="about-text1" class="editable-field" data-section="about" data-key="text1" rows="4">{{ content.get('about', {}).get('text1', '') }}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="about-text2">Paragraph 2</label>
+                        <textarea id="about-text2" class="editable-field" data-section="about" data-key="text2" rows="4">{{ content.get('about', {}).get('text2', '') }}</textarea>
+                    </div>
+                </section>
+
+                <!-- Contact Section -->
+                <section id="contact-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Contact Section</h2>
+                        <span class="section-badge">Contact Info</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contact-title">Section Title</label>
+                        <input type="text" id="contact-title" class="editable-field" data-section="contact" data-key="title" 
+                               value="{{ content.get('contact', {}).get('title', '') }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contact-subtitle">Section Subtitle</label>
+                        <textarea id="contact-subtitle" class="editable-field" data-section="contact" data-key="subtitle" rows="3">{{ content.get('contact', {}).get('subtitle', '') }}</textarea>
+                    </div>
+                </section>
+
+                <div class="content-footer">
+                    <p class="info-text">Changes are saved automatically as you type</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='admin.js') }}"></script>
+</body>
+</html>

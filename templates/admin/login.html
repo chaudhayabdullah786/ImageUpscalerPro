@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+    <title>Admin Login - ImageUpscalerPro</title>
+    <link rel="stylesheet" href="/static/admin.css">
 </head>
 <body class="login-page">
     <div class="login-container">
         <div class="login-box">
-            <h1>Admin Panel</h1>
-            <p class="subtitle">Sign in to manage your website</p>
+            <div class="login-header">
+                <h1>ImageUpscalerPro</h1>
+                <p>Admin Panel</p>
+            </div>
             
             {% if error %}
             <div class="alert alert-error">{{ error }}</div>
@@ -30,7 +32,9 @@
                 <button type="submit" class="btn btn-primary">Sign In</button>
             </form>
             
-            <p class="login-hint">Demo: Username: <strong>admin</strong> | Password: <strong>admin123</strong></p>
+            <p class="login-footer">
+                <a href="/">Back to Website</a>
+            </p>
         </div>
     </div>
 </body>

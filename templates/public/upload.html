@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Image - ImageUpscalerPro</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class="header">
+        <nav class="nav container">
+            <a href="/" class="logo">ImageUpscalerPro</a>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/upload" class="active">Upload</a></li>
+                <li><a href="/admin/login">Admin</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="upload-page">
+        <div class="container">
+            <h1>Upload Your Image</h1>
+            <p class="subtitle">Select an image to upscale. Supported formats: PNG, JPG, WebP, TIFF (max 15MB)</p>
+
+            <form id="upload-form" class="upload-form">
+                <div class="upload-zone" id="upload-zone">
+                    <div class="upload-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p class="upload-text">Drag & drop your image here</p>
+                        <p class="upload-subtext">or click to browse</p>
+                        <input type="file" id="file-input" name="file" accept="image/png,image/jpeg,image/webp,image/tiff" hidden>
+                    </div>
+                    <div class="preview-container" id="preview-container" style="display: none;">
+                        <img id="preview-image" alt="Preview">
+                        <button type="button" class="remove-btn" id="remove-btn">&times;</button>
+                    </div>
+                </div>
+
+                <div class="upload-options">
+                    <div class="option-group">
+                        <label>Upscale Factor</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="factor" value="2x" checked>
+                                <span>2x</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="factor" value="4x">
+                                <span>4x</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Preset</label>
+                        <select name="preset" id="preset">
+                            <option value="standard">Standard</option>
+                            <option value="photo">Photo</option>
+                            <option value="art">Art / Illustration</option>
+                            <option value="face">Face / Portrait</option>
+                        </select>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Denoise Level</label>
+                        <select name="denoise" id="denoise">
+                            <option value="none">None</option>
+                            <option value="low">Low</option>
+                            <option value="med">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="upload-actions">
+                    <button type="submit" class="btn btn-primary btn-large" id="submit-btn" disabled>
+                        <span class="btn-text">Start Upscaling</span>
+                        <span class="btn-loading" style="display: none;">Processing...</span>
+                    </button>
+                </div>
+
+                <div class="upload-progress" id="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">Uploading...</p>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script src="/static/upload.js"></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Logs - ImageUpscalerPro Admin</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>ImageUpscalerPro</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+                <a href="/admin/jobs" class="nav-item">Jobs</a>
+                <a href="/admin/settings" class="nav-item">Settings</a>
+                <a href="/admin/audit" class="nav-item active">Audit Logs</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Audit Logs</h1>
+                <p>Track all admin actions and system events</p>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Entity</th>
+                        <th>IP Address</th>
+                        <th>Timestamp</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.id }}</td>
+                        <td>{{ log.username or 'System' }}</td>
+                        <td><span class="action-badge">{{ log.action }}</span></td>
+                        <td>{{ log.entity_type }}{% if log.entity_id %}: {{ log.entity_id[:12] }}...{% endif %}</td>
+                        <td>{{ log.ip_address or '-' }}</td>
+                        <td>{{ log.created_at[:19] if log.created_at else '-' }}</td>
+                        <td>
+                            {% if log.details %}
+                            <button class="btn btn-small" onclick="showDetails('{{ log.details | e }}')">View</button>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="empty-state">No audit logs found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <div id="modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <h3>Details</h3>
+            <pre id="modal-details" class="code-block"></pre>
+        </div>
+    </div>
+
+    <script>
+        function showDetails(details) {
+            try {
+                const parsed = JSON.parse(details);
+                document.getElementById('modal-details').textContent = JSON.stringify(parsed, null, 2);
+            } catch {
+                document.getElementById('modal-details').textContent = details;
+            }
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        window.onclick = function(e) {
+            if (e.target === document.getElementById('modal')) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - ImageUpscalerPro Admin</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>ImageUpscalerPro</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin/dashboard" class="nav-item active">Dashboard</a>
+                <a href="/admin/jobs" class="nav-item">Jobs</a>
+                <a href="/admin/settings" class="nav-item">Settings</a>
+                <a href="/admin/audit" class="nav-item">Audit Logs</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Dashboard</h1>
+                <p>System overview and recent activity</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon queued">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ queued_jobs }}</h3>
+                        <p>Queued Jobs</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon running">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ running_jobs }}</h3>
+                        <p>Running Jobs</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon completed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ completed_today }}</h3>
+                        <p>Completed Today</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon time">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ avg_time }}s</h3>
+                        <p>Avg. Processing Time</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon uploads">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <path d="M21 15l-5-5L5 21"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ total_uploads }}</h3>
+                        <p>Total Uploads</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon storage">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ total_storage }} MB</h3>
+                        <p>Storage Used</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="recent-jobs">
+                <div class="section-header">
+                    <h2>Recent Jobs</h2>
+                    <a href="/admin/jobs" class="btn btn-secondary btn-small">View All</a>
+                </div>
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>File</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in recent_jobs %}
+                        <tr>
+                            <td><a href="/admin/jobs/{{ job.job_id }}">{{ job.job_id[:16] }}...</a></td>
+                            <td>{{ job.original_filename or 'Unknown' }}</td>
+                            <td><span class="status-badge status-{{ job.status }}">{{ job.status }}</span></td>
+                            <td>{{ job.created_at[:19] if job.created_at else '-' }}</td>
+                            <td>{{ job.duration_seconds if job.duration_seconds else '-' }}s</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="empty-state">No jobs yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

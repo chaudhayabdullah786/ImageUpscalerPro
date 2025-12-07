@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Status - ImageUpscalerPro</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class="header">
+        <nav class="nav container">
+            <a href="/" class="logo">ImageUpscalerPro</a>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/upload">Upload</a></li>
+                <li><a href="/admin/login">Admin</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="job-status-page">
+        <div class="container">
+            <div class="status-card" id="status-card">
+                <div class="status-header">
+                    <h1>Processing Your Image</h1>
+                    <p class="job-id">Job ID: <span id="job-id-display">{{ job_id }}</span></p>
+                </div>
+
+                <div class="status-content">
+                    <div class="status-indicator" id="status-indicator">
+                        <div class="spinner"></div>
+                        <p class="status-text" id="status-text">Checking status...</p>
+                    </div>
+
+                    <div class="progress-section" id="progress-section">
+                        <div class="progress-bar large">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <p class="progress-percentage" id="progress-percentage">0%</p>
+                    </div>
+
+                    <div class="result-section" id="result-section" style="display: none;">
+                        <h2>Your Image is Ready!</h2>
+                        <div class="result-preview">
+                            <img id="result-image" alt="Upscaled result">
+                        </div>
+                        <div class="result-actions">
+                            <a id="download-btn" class="btn btn-primary btn-large" download>Download Image</a>
+                            <a href="/upload" class="btn btn-secondary">Upscale Another</a>
+                        </div>
+                    </div>
+
+                    <div class="error-section" id="error-section" style="display: none;">
+                        <div class="error-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                        </div>
+                        <h2>Processing Failed</h2>
+                        <p class="error-message" id="error-message"></p>
+                        <a href="/upload" class="btn btn-primary">Try Again</a>
+                    </div>
+
+                    <div class="job-details" id="job-details">
+                        <h3>Job Details</h3>
+                        <dl>
+                            <dt>Status:</dt>
+                            <dd id="detail-status">-</dd>
+                            <dt>Created:</dt>
+                            <dd id="detail-created">-</dd>
+                            <dt>Duration:</dt>
+                            <dd id="detail-duration">-</dd>
+                            <dt>Settings:</dt>
+                            <dd id="detail-settings">-</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const jobId = '{{ job_id }}';
+        let pollInterval;
+
+        function formatDate(isoString) {
+            if (!isoString) return '-';
+            return new Date(isoString).toLocaleString();
+        }
+
+        function pollJobStatus() {
+            fetch(`/api/v1/jobs/${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateUI(data);
+                    
+                    if (data.status === 'completed' || data.status === 'failed' || data.status === 'canceled') {
+                        clearInterval(pollInterval);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling job status:', error);
+                });
+        }
+
+        function updateUI(data) {
+            const statusText = document.getElementById('status-text');
+            const progressFill = document.getElementById('progress-fill');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const progressSection = document.getElementById('progress-section');
+            const resultSection = document.getElementById('result-section');
+            const errorSection = document.getElementById('error-section');
+            const statusIndicator = document.getElementById('status-indicator');
+
+            document.getElementById('detail-status').textContent = data.status;
+            document.getElementById('detail-created').textContent = formatDate(data.created_at);
+            document.getElementById('detail-duration').textContent = data.duration_seconds ? `${data.duration_seconds}s` : '-';
+            
+            if (data.params) {
+                const settings = `${data.params.factor || '2x'}, ${data.params.preset || 'standard'}, denoise: ${data.params.denoise || 'none'}`;
+                document.getElementById('detail-settings').textContent = settings;
+            }
+
+            switch (data.status) {
+                case 'queued':
+                    statusText.textContent = 'Waiting in queue...';
+                    progressFill.style.width = '10%';
+                    progressPercentage.textContent = 'Queued';
+                    break;
+                    
+                case 'running':
+                    statusText.textContent = 'Processing your image...';
+                    progressFill.style.width = `${data.progress || 50}%`;
+                    progressPercentage.textContent = `${data.progress || 50}%`;
+                    break;
+                    
+                case 'completed':
+                    statusIndicator.style.display = 'none';
+                    progressSection.style.display = 'none';
+                    resultSection.style.display = 'block';
+                    
+                    if (data.result_url) {
+                        document.getElementById('result-image').src = data.result_url;
+                        document.getElementById('download-btn').href = data.result_url;
+                    }
+                    break;
+                    
+                case 'failed':
+                    statusIndicator.style.display = 'none';
+                    progressSection.style.display = 'none';
+                    errorSection.style.display = 'block';
+                    document.getElementById('error-message').textContent = data.error || 'An unexpected error occurred.';
+                    break;
+                    
+                case 'canceled':
+                    statusText.textContent = 'Job was canceled';
+                    progressSection.style.display = 'none';
+                    break;
+            }
+        }
+
+        pollJobStatus();
+        pollInterval = setInterval(pollJobStatus, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jobs - ImageUpscalerPro Admin</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>ImageUpscalerPro</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+                <a href="/admin/jobs" class="nav-item active">Jobs</a>
+                <a href="/admin/settings" class="nav-item">Settings</a>
+                <a href="/admin/audit" class="nav-item">Audit Logs</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Jobs</h1>
+                <p>Manage all upscaling jobs</p>
+            </div>
+
+            <div class="filters">
+                <form method="GET" class="filter-form">
+                    <select name="status" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        <option value="queued" {% if status_filter == 'queued' %}selected{% endif %}>Queued</option>
+                        <option value="running" {% if status_filter == 'running' %}selected{% endif %}>Running</option>
+                        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
+                        <option value="canceled" {% if status_filter == 'canceled' %}selected{% endif %}>Canceled</option>
+                    </select>
+                </form>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>File</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Created</th>
+                        <th>Duration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td><a href="/admin/jobs/{{ job.job_id }}">{{ job.job_id[:16] }}...</a></td>
+                        <td>{{ job.original_filename or 'Unknown' }}</td>
+                        <td><span class="status-badge status-{{ job.status }}">{{ job.status }}</span></td>
+                        <td>{{ job.progress }}%</td>
+                        <td>{{ job.created_at[:19] if job.created_at else '-' }}</td>
+                        <td>{{ job.duration_seconds if job.duration_seconds else '-' }}s</td>
+                        <td class="actions">
+                            <a href="/admin/jobs/{{ job.job_id }}" class="btn btn-small">View</a>
+                            {% if job.status in ['queued', 'running'] %}
+                            <button class="btn btn-small btn-danger" onclick="cancelJob('{{ job.job_id }}')">Cancel</button>
+                            {% endif %}
+                            {% if job.status in ['completed', 'failed'] %}
+                            <button class="btn btn-small" onclick="requeueJob('{{ job.job_id }}')">Requeue</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="empty-state">No jobs found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <script>
+        function cancelJob(jobId) {
+            if (confirm('Are you sure you want to cancel this job?')) {
+                fetch(`/api/v1/admin/jobs/${jobId}/cancel`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    });
+            }
+        }
+
+        function requeueJob(jobId) {
+            if (confirm('Are you sure you want to requeue this job?')) {
+                fetch(`/api/v1/admin/jobs/${jobId}/requeue`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Job requeued: ' + data.new_job_id);
+                            location.reload();
+                        }
+                    });
+            }
+        }
+    </script>
+</body>
+</html>

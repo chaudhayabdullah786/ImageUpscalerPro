@@ -1,0 +1,572 @@
+ImageUpscalerPro — Detailed Blueprint
+
+This blueprint describes a complete, production-sensible plan to build an image upscaling web service (like imgupscaler.ai). It’s intentionally implementation-agnostic (no code) and contains architecture, data models, endpoint contracts, worker design, security, deployment, testing, rollback and operational procedures, and acceptance criteria so a developer or AI code generator can implement it.
+
+Seed admin (initial DB seed):
+Username: abdullah
+Password: 231980077
+(Store only hashed in DB; force password change on first login in production.)
+
+1 — High-level architecture
+
+Components and responsibilities:
+
+Frontend (SPA or server-rendered pages)
+
+Public UI: landing, upload form (drag/drop), job status page, user dashboard (optional).
+
+Admin UI: job list, job detail, workers, models, settings, audit logs.
+
+API Backend (Flask)
+
+HTTP API (versioned /api/v1/*) for uploads, job management, auth, admin actions.
+
+Serves static frontend assets if SPA is packaged with backend.
+
+Persistent storage
+
+Relational DB for users, jobs, uploads, models, audit logs. (SQLite for dev; PostgreSQL for prod.)
+
+Object storage for files: local filesystem for dev, S3 or S3-compatible for prod.
+
+Job queue & workers
+
+Broker & queue (Redis recommended).
+
+Worker processes (Celery or RQ) to run upscaling inference; GPU-enabled workers optional.
+
+Workers fetch queued jobs, run model inference, store results, update job status.
+
+Rate limiter & cache
+
+Redis used for rate limiting public endpoints and short caches (estimated times, signed URLs).
+
+Optional services
+
+Email service (SMTP / transactional provider) for notifications.
+
+Monitoring/metrics store (Prometheus + Grafana) and log aggregation (ELK/Logflare).
+
+Admin & operational tooling
+
+Migration scripts, seed admin user, backup/restore tools, admin CLI for emergency operations.
+
+Network flow:
+
+Browser -> Flask API upload endpoint -> persists upload -> creates job -> enqueue -> worker picks job -> performs upscaling -> stores artifact -> backend marks job completed -> user polls job status / downloads result.
+
+2 — Key non-functional requirements
+
+Security: salted password hashing, CSRF protection, input validation, signed download links, rate limiting, HTTPS in production.
+
+Scalability: stateless API; scale workers horizontally; store artifacts in S3 for horizontal scaling.
+
+Resilience: job retries with exponential backoff; job status transitions persistent in DB; idempotent job processing.
+
+Observability: metrics (queue length, job durations, success rate), structured logs, alerting on worker failures.
+
+Privacy & limits: file retention policies, per-user quotas, optional watermarking for free tier.
+
+Portability: configure via environment variables; local dev easy to run with docker-compose.
+
+3 — Data model (relational)
+
+Core tables and important fields (types described conceptually):
+
+users
+
+id, username (unique), email, password_hash, role (admin|user), created_at, last_login_at, is_active
+
+uploads
+
+id, owner_id (nullable FK), original_filename, mime_type, width, height, size_bytes, storage_key, created_at
+
+jobs
+
+job_id (unique string), upload_id, owner_id (nullable), status (queued|running|completed|failed|canceled), progress (0-100), params (JSON), model (string), worker_id, error_message, result_storage_key, created_at, started_at, finished_at, duration_seconds
+
+models
+
+id, name (e.g., real-esrgan-v2-photo), artifact_path, gpu_required (bool), default_params (JSON), created_at
+
+audit_logs
+
+id, user_id, action, entity_type, entity_id, details (JSON), ip_address, created_at
+
+settings
+
+key/value pairs for max_upload_size_bytes, allowed_mimes, default_model, rate_limit_per_minute, retention days, etc.
+
+Indexes:
+
+jobs: index on status, created_at for fast dashboard queries.
+
+uploads: index on owner_id.
+
+users: unique index on username, email.
+
+Retention policy:
+
+Keep original uploads and results for configurable days (e.g., 30 days), then expire/delete. Archive to cheaper storage if needed.
+
+4 — API contract (versioned)
+
+All timestamps are ISO8601 UTC strings. Responses use JSON. Use HTTP status codes properly.
+
+Public endpoints (no code provided; shapes only)
+
+POST /api/v1/uploads (multipart/form-data)
+
+Fields: file (required), factor (2x|4x), preset (photo|art|face|standard), denoise (none|low|med|high), refine_faces (bool), email (optional), callback_url (optional).
+
+Behavior: validate, store file, create upload record, create job with status=queued, enqueue job.
+
+Responses:
+
+202 Accepted with { job_id, status: "queued", created_at, estimated_seconds }
+
+400 on validation error (detailed error JSON).
+
+413 if file too large.
+
+GET /api/v1/jobs/{job_id}
+
+Returns job metadata: { job_id, status, progress, created_at, started_at, finished_at, original_url, result_url (when ready), params, model, error }.
+
+GET /api/v1/uploads/{upload_id}/download or signed URL method
+
+Returns or redirects to a signed short-lived download URL.
+
+GET /api/v1/health
+
+Returns { status: "ok", queue_length, workers_online, free_disk_percent }.
+
+Authenticated/Admin endpoints
+
+POST /api/v1/auth/login
+
+Returns session cookie or JWT token, role, expiry.
+
+GET /api/v1/admin/jobs (filters: status, date range, owner)
+
+GET /api/v1/admin/jobs/{job_id} (detailed; logs; actions)
+
+POST /api/v1/admin/jobs/{job_id}/requeue (re-run job)
+
+POST /api/v1/admin/jobs/{job_id}/cancel
+
+GET /api/v1/admin/workers
+
+POST /api/v1/admin/models (register new model artifact/preset)
+
+POST /api/v1/admin/settings (update global settings)
+
+GET /api/v1/admin/audit (query audit log)
+
+Auth: all admin endpoints require admin role and strong session management. Use CSRF for cookie sessions.
+
+Rate limiting:
+
+Public uploads: per-IP limit (e.g., 10/hour) and per-account (if registered).
+
+If rate limit exceeded: 429 Too Many Requests with Retry-After header.
+
+Jobs: polling & Webhooks
+
+Clients poll GET /api/v1/jobs/{job_id}. Optionally provide callback_url to receive a signed POST on completion.
+
+5 — Worker & processing pipeline (detailed)
+
+Worker responsibilities and processing steps:
+
+Fetch job: mark as running, record started_at.
+
+Download original file from storage to local temp.
+
+Validate image: attempt to open; ensure allowed dimensions and size. Reject if corrupted.
+
+Optional preprocess:
+
+Convert to desired color space (RGB), ensure proper bit depth.
+
+Face detection step if refine_faces requested: detect faces and prepare regions.
+
+Select model & params: map preset and denoise into actual model/artifact and inference params.
+
+Run inference:
+
+If GPU available and model requires GPU, use GPU worker; else CPU fallback model (simple bicubic/nearest for dev).
+
+Monitor memory usage and enforce job timeout (configurable).
+
+Postprocess:
+
+Combine face-refined patches with global image if required.
+
+Apply denoise/sharpen as configured.
+
+Save final image as PNG or user-selected format. Generate thumbnail preview.
+
+Store result: upload to object storage and set result_storage_key.
+
+Update job: status=completed, finished_at, duration_seconds, progress=100.
+
+Notifications: send email or invoke callback_url if provided (HMAC sign payload).
+
+Failure handling:
+
+On transient error: retry (configurable retry count).
+
+On persistent error: set status=failed, store error message, write stack trace to logs, create audit log entry.
+
+Idempotency:
+
+Workers must detect already-completed jobs (by job_id) to avoid double processing; use DB locks or optimistic updates.
+
+Metrics per job:
+
+queue_wait_time, start_to_finish_duration, success/failure, model_used, worker_id.
+
+6 — Admin panel & operational UI (spec)
+
+Admin pages and capabilities:
+
+Login page
+
+Force secure cookie, optional 2FA.
+
+Dashboard
+
+KPI cards: queued jobs, running jobs, completed today, avg job time, disk usage.
+
+Quick actions: pause queue, resume queue, set maintenance mode.
+
+Jobs view
+
+Filter & search, ability to view job details, cancel, requeue, download artifacts, view logs.
+
+Workers view
+
+Heartbeats, GPU availability, worker load, last seen.
+
+Models view
+
+Register/upload new model artifacts, tag model presets, mark default model, annotate model notes.
+
+Settings
+
+Global config: upload size, allowed MIME, rate limits, retention days, storage backend settings.
+
+Users & audit logs
+
+Manage users, change roles, see audit trails for admin actions.
+
+System & logs
+
+Recent errors, log streaming, metrics graphs; export logs for incidents.
+
+Security features in admin UI:
+
+Sessions auto-expire, log out on password change, show active sessions, allow forcing password reset for users.
+
+7 — Security & hardening
+
+Authentication:
+
+Use securely hashed passwords (bcrypt/argon2).
+
+Admin account seeded but require forced change or 2FA on first login for production.
+
+Transport:
+
+HTTPS mandatory in production. Set SESSION_COOKIE_SECURE, HSTS, and Content-Security-Policy.
+
+CSRF:
+
+Protect forms and stateful POST endpoints with CSRF tokens.
+
+Input validation:
+
+Validate mime types, ensure files are images by detection (not just content-type).
+
+Limit dimensions and pixel count to avoid OOM.
+
+Signed URLs:
+
+Serve final artifacts via short-lived signed URLs, or stream via authenticated proxy.
+
+Rate limiting:
+
+Implement per-IP and per-account limits; escalate suspicious activity.
+
+Webhooks:
+
+Sign callback payloads using HMAC secret; accept only signed webhooks from configured servers.
+
+Secrets:
+
+Use env vars or a secrets manager; never commit secrets to repo.
+
+Monitoring & alerts:
+
+Alert on worker crash loops, high failure rates, unusual spikes in uploads, disk exhaustion.
+
+8 — Deployment & infra (ops)
+
+Environments: local dev, staging, production.
+
+Recommended production stack:
+
+API: Flask app in Docker containers behind Gunicorn/uvicorn (WSGI/ASGI).
+
+Queue: Redis (broker), Celery or RQ workers in separate containers.
+
+DB: PostgreSQL.
+
+Storage: S3 (object storage).
+
+Load balancing: Nginx or cloud LB, HTTPS termination.
+
+Autoscaling: scale worker replicas for inference load; separate GPU-enabled worker pool for heavy models.
+
+Example runtime components (conceptual):
+
+web service (stateless app servers) behind load balancer.
+
+worker service pool (CPU) for dev fallback.
+
+gpu-worker service pool (GPU nodes) for model inference.
+
+redis for broker & rate limiter.
+
+postgres for relational data.
+
+s3 for artifacts.
+
+CI/CD:
+
+Build pipeline: lint -> unit tests -> build image -> run integration tests (smoke) -> push image -> deploy to staging -> run e2e tests -> promote to prod.
+
+Add DB migrations in pipeline (use migration tooling) with rollback-capable migration steps.
+
+Environment variables (examples to set; names only):
+
+FLASK_ENV, DATABASE_URL, REDIS_URL, S3_BUCKET, S3_ENDPOINT, STORAGE_BACKEND, SECRET_KEY, ADMIN_SEED_USER, ADMIN_SEED_PASS, MAX_UPLOAD_SIZE_BYTES, RATE_LIMIT_PER_MINUTE, JOB_TIMEOUT_SECONDS, WORKER_CONCURRENCY.
+
+Backup & restore:
+
+Daily DB backups (snapshot/export).
+
+Periodic snapshot of S3 bucket or ensure lifecycle policies.
+
+Test restores regularly in staging.
+
+Cost considerations:
+
+GPU inference is expensive — use auto-scaling and scheduling, offer quotas or paid plans.
+
+Storage costs for artifacts; retention policy to reduce long-term costs.
+
+9 — Testing & QA
+
+Test types and examples:
+
+Unit tests
+
+Param parsing, validation, DB model functions, auth middleware.
+
+Integration tests
+
+Upload → enqueue job → worker processes using CPU fallback → job completes and artifact stored.
+
+End-to-end tests
+
+Admin login → view job → requeue/cancel → verify job lifecycle.
+
+Security tests
+
+CSRF, SQL injection attempts, upload malicious files, rate-limit evasion.
+
+Load & stress tests
+
+Simulate many concurrent uploads to test queue length, worker autoscaling, and rate-limiter.
+
+Smoke tests
+
+Health endpoint and a simple upload/processing smoke.
+
+Testing data:
+
+Provide small sample images for CPU-based smoke tests and synthetic large images for stress tests.
+
+10 — Logging, metrics & monitoring
+
+Minimum logs:
+
+Request logs (correlate with job_id when applicable), job lifecycle logs (enqueue, start, finish, failure), worker process logs, audit logs for admin actions.
+
+Metrics to export:
+
+jobs_queued, jobs_running, jobs_completed_total, jobs_failed_total, avg_job_duration_seconds, worker_count, disk_free_percent, upload_rate_per_minute.
+
+Dashboards & alerts:
+
+Dashboard: queue length, worker health, average job time, error rate.
+
+Alerts: queue length above threshold, repeated worker failures, disk full < threshold.
+
+Retention and log rotation:
+
+Rotate logs daily, keep logs for X days based on compliance, archive to cheaper storage.
+
+11 — Rollback & incident response
+
+Rollback plan for code deploys
+
+Always use blue/green or canary deployments.
+
+Maintain DB migration backward compatibility: write migrations that are reversible or deploy in two phases (schema additive changes first).
+
+If a deploy causes failures, rollback to previous image & run health checks. If migration is destructive, rollback plan must include DB restore from snapshot.
+
+Job-level rollback
+
+If a bad model is promoted causing bad results:
+
+Immediately demote model (admin: promote previous stable version).
+
+Re-queue affected jobs if needed.
+
+Mark produced artifacts from bad model and provide option in admin UI to re-run affected jobs with previous model.
+
+Data restore
+
+Use daily DB backups and object storage backups. To restore production: spin up isolated restore environment, restore DB snapshot, re-point workers to restored storage.
+
+Emergency admin access
+
+Provide CLI script to reset an admin password or create a temporary admin user (requires access to DB and secrets). Log all such emergency actions into audit_logs.
+
+Incident response playbook
+
+Detect via alert (e.g., high failure_rate).
+
+Triage: check logs for root cause, check worker health.
+
+If model related: demote model to previous stable version.
+
+If infrastructure related (disk, redis): scale/clear resources.
+
+Document actions in incident report, notify stakeholders, and conduct post-mortem.
+
+12 — Example operational commands & client flows (shapes, not code)
+
+Upload flow (client):
+
+POST /api/v1/uploads → receive { job_id }.
+
+Poll GET /api/v1/jobs/{job_id} until status=completed.
+
+Use result_url or GET download endpoint.
+
+Admin re-run flow:
+
+Admin selects job → click Requeue → server creates new job instance with same params (option to override), returns new job_id.
+
+Health check (for LB/monitoring):
+
+GET /api/v1/health returns essential info.
+
+13 — Acceptance criteria (minimum)
+
+A public upload returns a job_id and job is processed by worker to completed with a downloadable result.
+
+Admin login with seeded credentials works and admin can view and requeue jobs.
+
+Job artifacts are stored in object storage and served through short-lived signed URLs.
+
+Rate limiting prevents abuse and returns 429 when limits exceeded.
+
+Workers update job statuses reliably and retries behave as configured.
+
+Secrets are not stored in code; environment variables used.
+
+DB backups and restore documented and tested in staging.
+
+Test suite (unit + integration smoke) passes in CI before deploy.
+
+14 — Implementation & delivery checklist (for dev or AI generator)
+
+ Project skeleton with config via env vars.
+
+ DB schema & migrations; seed admin user with given credentials (hashed).
+
+ Flask API endpoints implemented as specified; input validation & error handling.
+
+ Object storage module abstracted (local dev and S3 prod).
+
+ Queue integration and worker implementation (with CPU fallback).
+
+ Frontend (upload page, job status page, admin UI).
+
+ Rate limiting, CSRF, and password hashing.
+
+ Monitoring & logging integration.
+
+ CI pipeline to run tests and build images.
+
+ Deployment manifest examples (docker-compose, Kubernetes hints).
+
+ Runbook: backup, restore, rollback, incident response.
+
+15 — Migration & rollback details (practical steps)
+
+Seeding admin:
+
+On initial migration, insert users row for abdullah with hashed 231980077 and role admin. Mark force_password_reset=true flag.
+
+Schema migration best practices:
+
+Additive migrations only for deploys where rollback may be needed: create new columns with defaults then backfill in a later migration. Avoid dropping columns in the same deploy that contains code depending on the column removal.
+
+Rollback scenario example (bad deploy):
+
+Detect failure after deploy.
+
+Revert to previous container image using orchestrator (e.g., Kubernetes rollout undo).
+
+If migration was applied that is not reversible, restore DB from last snapshot taken immediately before deploy.
+
+Re-deploy previous version and monitor.
+
+Job data rollback:
+
+If you need to re-run jobs processed by a faulty model, provide admin UI bulk "requeue" that references original upload IDs to create safe re-run jobs. Keep original job records for auditing.
+
+16 — Cost & scaling notes
+
+GPU inference cost is primary driver. Offer tiers (free with watermark & queue limits; paid with priority & no watermark).
+
+Use spot/GPU autoscaling for cost savings.
+
+Use lifecycle policies on object storage to delete artifacts after retention window.
+
+17 — Deliverable artifacts for handoff
+
+API spec (OpenAPI/Swagger) with endpoints described above.
+
+DB migration scripts.
+
+Deployment manifests (docker-compose + Kubernetes examples).
+
+README with env vars and run instructions.
+
+Example curl commands to test upload and job polling.
+
+Test data (small sample images) and smoke test scripts.
+
+Runbook: backup/restore and rollback steps.
+
+If you want, I can now:
+
+Produce a condensed Op

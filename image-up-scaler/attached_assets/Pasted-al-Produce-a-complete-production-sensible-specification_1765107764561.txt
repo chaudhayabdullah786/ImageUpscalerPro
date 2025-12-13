@@ -1,0 +1,430 @@
+al: Produce a complete, production-sensible specification (developer / AI-code-generator prompt) for building an Image Upscaler web service (similar in function to https://imgupscaler.ai/
+) with a Flask backend and a plain HTML/CSS/vanilla JS frontend, plus an admin panel. This document is not implementation code — it is an unambiguous blueprint that a developer or an AI code generator can follow to implement the site.
+
+Project title: ImageUpscalerPro
+
+Admin credentials (seeded on initial migration):
+
+Username: abdullah
+
+Password: 231980077
+
+High-level description:
+
+Public users can upload an image, choose an upscaling factor (e.g., 2x / 4x), optional denoise/sharpen/face-refine settings, submit a job, and download the upscaled result when complete.
+
+The backend runs upscaling jobs using a pluggable image-enhancement engine (support Real-ESRGAN, waifu2x, or other models). Long jobs run asynchronously via a job queue worker.
+
+The admin panel (protected by authentication) allows management of jobs, users, rate limits, model selection and configuration, monitoring of system health, and viewing usage logs.
+
+Non-functional requirements:
+
+Tech stack: Python 3.10+ Flask for the HTTP API and admin UI; SQLite for development (switchable to PostgreSQL via env var for production); Redis for job queue and rate-limiting storage; Celery (or RQ) as worker queue (detailed as an implementation option).
+
+Storage: local filesystem for dev, S3 or S3-compatible storage for production (configurable via env).
+
+Security: password hashing, CSRF protection, authenticated admin routes, input sanitization, size/type validation on uploads, rate limiting for public API.
+
+Scalability: jobs executed by workers in separate processes/containers; ability to add GPU-enabled workers for model inference; ability to swap local storage to S3.
+
+Observability: structured logs, job metrics, admin dashboard showing queue lengths, recent errors, throughput, disk usage.
+
+User flows
+
+Guest / public user
+
+Visit landing page describing service and usage limits.
+
+Upload image via form (or drag/drop), choose settings: upscale factor (2x, 4x), model preset (photo, art, face), denoise level (none/low/med/high), and optional enhancement toggles.
+
+Submit: frontend posts file to POST /api/v1/uploads (multipart/form-data); server returns a job id and immediate job status { job_id, status: "queued", estimated_seconds }.
+
+Poll job status at GET /api/v1/jobs/{job_id}. When status == completed, response includes download URL and artifact metadata.
+
+Download the upscaled image. Optionally users can get a short-lived signed URL for download.
+
+Optional: allow user to enter an email to receive a completion notification (email sending optional/configurable).
+
+Registered user (optional)
+
+Register/login (email + password); maintain user dashboard with past jobs, download links, usage statistics and quota.
+
+Authentication uses session cookies or JWT (configurable). Admin decides whether registered users required.
+
+Admin
+
+Login to admin panel /admin/login (seeded account exists).
+
+Dashboard sections: Recent jobs, queued jobs, worker health, storage usage, error logs, model configuration, user management, system settings (rate limits, file size limits), and audit logs.
+
+Actions: cancel a job, re-run a job with different settings, download artifacts, delete artifacts, promote a different model preset to default, configure global defaults (max upload size, allowed formats), manage user accounts, export usage CSV, view per-job logs and worker traces.
+
+Audit trail: every admin action saved with admin id, timestamp, IP, and action details.
+
+API specification (versioned v1; JSON everywhere except file upload)
+
+Authentication:
+
+Public endpoints: upload and job status allowed, but rate-limited and file-size limited.
+
+Protected endpoints: admin and user-specific endpoints require auth (session or bearer token).
+
+Admin endpoints require role admin.
+
+Principal endpoints (clear request/response shapes):
+
+POST /api/v1/uploads
+
+Purpose: upload image and create an upscaling job.
+
+Auth: optional (public allowed); accept optional Authorization header if logged in.
+
+Request: multipart/form-data with fields:
+
+file (binary; required) — allowed mime types: image/jpeg, image/png, image/webp, image/tiff (configurable)
+
+factor (string; required) — one of 2x, 4x
+
+preset (string; optional) — photo, art, face, standard (server maps to model/params)
+
+denoise (string; optional) — none, low, med, high
+
+refine_faces (boolean; optional) — true/false (if face-refine model available)
+
+email (string; optional) — for completion email
+
+callback_url (string; optional) — webhook to POST result when done (signed)
+
+Server behavior:
+
+Validate file type and size (max configurable, e.g., 15 MB).
+
+Persist original file to storage with safe randomized filename.
+
+Create DB job record with status='queued', store selected parameters, owner (if any), created_at UTC ISO8601.
+
+Enqueue job for worker; return HTTP 202 Accepted.
+
+Response example (202):
+
+{
+  "job_id": "job_abc123",
+  "status": "queued",
+  "created_at": "2025-12-07T12:34:56Z",
+  "estimated_seconds": 20
+}
+
+
+GET /api/v1/jobs/{job_id}
+
+Purpose: fetch job status & metadata.
+
+Auth: public for owner or if job is public (config); otherwise require auth or secret.
+
+Response includes:
+
+job_id, status (queued|running|completed|failed|canceled), progress (0-100), worker_id (if running), params, created_at, started_at, finished_at, duration_seconds, original_file (URL), result_file (URL when completed), error (nullable), model (used), logs (short tail).
+
+Example:
+
+{
+  "job_id":"job_abc123",
+  "status":"completed",
+  "progress":100,
+  "created_at":"2025-12-07T12:34:56Z",
+  "started_at":"2025-12-07T12:35:00Z",
+  "finished_at":"2025-12-07T12:35:20Z",
+  "original_file":"https://.../uploads/orig_abc.jpg",
+  "result_file":"https://.../results/upscaled_abc.png",
+  "model":"real-esrgan-v2-photo",
+  "params":{ "factor":"4x", "denoise":"med", "refine_faces":false }
+}
+
+
+GET /api/v1/uploads/{upload_id}/download (or served as static object with auth/signature)
+
+Purpose: produce a signed download link or proxy download.
+
+Response: redirect to signed URL or stream file via Flask with proper headers.
+
+POST /api/v1/jobs/{job_id}/requeue (admin only)
+
+Purpose: re-run job (with same or overridden params).
+
+Response: new job id or queued status.
+
+GET /api/v1/health
+
+Purpose: lightweight health check returns JSON with status: ok, queue_length, free_disk_percent, workers_online.
+
+Admin endpoints (under /api/v1/admin/*):
+
+GET /api/v1/admin/jobs — list jobs with filters (status, date range, owner), pagination.
+
+GET /api/v1/admin/jobs/{job_id} — detailed job view including full logs and worker trace.
+
+POST /api/v1/admin/models — upload/register a new model artifact/preset mapping.
+
+GET /api/v1/admin/workers — show workers status, GPU availability, last heartbeat.
+
+POST /api/v1/admin/settings — update global settings (max file size, allowed formats, rate limits).
+
+GET /api/v1/admin/audit — query audit logs.
+
+POST /api/v1/admin/users — create user.
+
+Admin endpoints require auth and role-check.
+
+Database schema (recommended relational tables; fields types described generically):
+
+users:
+
+id (PK), username (unique), email, password_hash, role (admin|user), created_at (ISO8601), last_login_at, is_active (bool)
+
+uploads:
+
+id (PK, uuid or serial), owner_id (FK users.id nullable), original_filename, storage_path (object path), mime_type, size_bytes, width (int), height (int), created_at (ISO8601)
+
+jobs:
+
+id (PK, job_xxx string), upload_id (FK), owner_id (FK users.id nullable), status (queued|running|completed|failed|canceled), progress (int 0-100), params (JSON: factor, preset, denoise, refine_faces, callback_url), model (string used), worker_id (string), error_message (text nullable), result_path (string), created_at, started_at, finished_at, duration_seconds (int)
+
+models:
+
+id, name (e.g., real-esrgan-v2-photo), type (esrgan|waifu2x|other), artifact_path, default_params (JSON), gpu_required (bool), created_at, note
+
+audit_logs:
+
+id, user_id, action (string), entity_type, entity_id, details (JSON), ip_address, created_at
+
+settings:
+
+key/value store for max_upload_size_bytes, allowed_mimes, default_model, rate_limit_per_minute, etc.
+
+Storage & artifact handling
+
+Store original uploads and results in uploads/ and results/ directories locally for dev. Use hashed randomized filenames to avoid collisions and path traversal.
+
+For production, store objects in S3-compatible storage; store object keys in DB.
+
+Provide an expiration policy for public downloads (signed URLs expire after configurable time, e.g., 24 hours).
+
+Image processing pipeline (worker responsibilities)
+
+Worker picks job from queue, downloads original image from storage.
+
+Validate image is loadable and within allowed dimensions (e.g., max width/height 8000 px to protect memory).
+
+Preprocess: convert to model-expected format (RGB), optional face-detection/align step if refine_faces requested.
+
+Run inference using the configured model (e.g., Real-ESRGAN):
+
+Run model with target scale (2x/4x).
+
+Optionally run denoise/sharpen postprocessing.
+
+For face refine: run a specialized face-restoration model and blend results.
+
+Save result as PNG (or user-selected format), create a thumbnail preview, compute final width/height and file size.
+
+Store result to storage and update job record (status=completed, result_path, finished_at, duration_seconds).
+
+If callback_url provided, POST signed result JSON to callback URL (include job id, model, result URL).
+
+On error, mark job as failed with error message, log stack trace to file and DB.
+
+Worker implementation notes (for implementer)
+
+Use Celery (Redis broker + Redis backend) or RQ; worker should be able to use GPU if present. Implement automatic fallback to CPU.
+
+Enforce per-worker memory and timeout limits per job to avoid OOM; kill and mark failed if exceeded.
+
+Support concurrency configuration and auto-scaling hints.
+
+Rate limiting and abuse prevention
+
+Public rate limit per IP: e.g., 10 uploads per hour per IP (configurable).
+
+Rate limit per account: e.g., 100 uploads per day for registered free users.
+
+File size limits: default max 15 MB (configurable).
+
+CAPTCHA option for unauthenticated uploads to reduce automated abuse.
+
+Queue length and worker limit enforcement: offer graceful 429 Too Many Requests when queue full.
+
+Admin panel UI wireframe & behavior (pages and features)
+
+/admin/login — admin login; after login redirect to /admin/dashboard.
+
+/admin/dashboard — KPI cards: Total uploads, Jobs queued, Jobs running, Completed today, Average job time, Storage used; charts for jobs/time.
+
+/admin/jobs — paginated table with filters; each row: job id, owner, status, model, created_at, actions (view, cancel, requeue, download).
+
+/admin/job/{job_id} — detailed job report: original image preview, result preview, full logs, worker info, timings, ability to re-run or download artifacts.
+
+/admin/models — list models, upload new artifacts, select default model, configure presets.
+
+/admin/settings — UI to change settings (max upload size, rate limits, storage backend, worker config).
+
+/admin/users — list/create/edit/delete users, reset password.
+
+/admin/audit — view audit logs with search, filter by user/action/date.
+
+Frontend pages (public)
+
+Landing page with explanation, example images, pricing/limits, and upload form.
+
+Upload modal/page with drag/drop, parameter controls, preview, and submit button. Show estimated queue time and usage warnings.
+
+Job status page (shareable link) that displays progress, previews, and download button when available.
+
+(Optional) User dashboard listing past uploads and downloads (requires auth).
+
+All upload forms must validate file size/type client-side and show friendly messages.
+
+UX & accessibility
+
+Mobile-first, responsive layout.
+
+Large touch targets for upload and primary actions.
+
+Provide progress indicators for upload (XHR progress) and job status (polling & exponential backoff).
+
+Provide image previews (client-side) to confirm uploaded image.
+
+Use alt attributes, proper labels, and keyboard navigation.
+
+Security & hardening
+
+Store passwords using secure salted hashing (e.g., bcrypt).
+
+Protect admin endpoints; set secure cookies: HttpOnly, Secure (in prod), SameSite=Strict.
+
+Use CSRF tokens for forms.
+
+Sanitize and validate all inputs; never trust callback URLs — sign webhook payloads using an HMAC secret.
+
+Limit accepted MIME types and strictly validate image content with server-side image library (Pillow) to avoid malicious files.
+
+Run uploads through antivirus/scan if available.
+
+Enforce CORS policy that only allows expected origins for API if single frontend used; allow public download URLs only via signed links.
+
+Telemetry, logs & monitoring
+
+Log job lifecycle events: enqueue, start, success, fail with stack trace.
+
+Export metrics for queue length, job durations, success/failure rates.
+
+Admin UI should display recent errors and worker health.
+
+Rotate logs and provide retention policy.
+
+Testing
+
+Unit tests for upload handling, param parsing, DB operations, and security checks.
+
+Integration tests: upload an image, process via a lightweight CPU model (or mocked model), ensure job completes and result stored.
+
+E2E tests: admin login, view jobs, cancel job, requeue.
+
+Stress tests: simulate many concurrent uploads to ensure queue and rate limiting behave.
+
+Deployment & operations
+
+Dockerize backend and worker separately. Provide example Dockerfile and docker-compose.yml (document only; no code required here).
+
+Env vars to configure: FLASK_ENV, DATABASE_URL, STORAGE_BACKEND (local|s3), S3_BUCKET, REDIS_URL, SECRET_KEY, ADMIN_SEED_USER, ADMIN_SEED_PASS, MAX_UPLOAD_SIZE_BYTES, RATE_LIMIT.
+
+Provide instructions for migrating from SQLite to Postgres and moving object storage to S3.
+
+Backup strategy: periodic DB dumps and periodic backup of result artifacts.
+
+GPU workers: document how to run worker containers with GPU access (nvidia-docker) and appropriate CUDA toolkits.
+
+Example API call flows & sample JSON
+
+Upload (multipart form):
+
+Request: POST /api/v1/uploads with file + factor=4x, preset=photo, denoise=med
+
+Response 202:
+
+{
+  "job_id":"job_1G5a2",
+  "status":"queued",
+  "created_at":"2025-12-07T12:00:00Z",
+  "estimated_seconds":30
+}
+
+
+Poll job status:
+
+Request: GET /api/v1/jobs/job_1G5a2
+
+Response while running:
+
+{ "job_id":"job_1G5a2","status":"running","progress":65,"worker_id":"w-3","started_at":"2025-12-07T12:00:10Z" }
+
+
+Response when completed:
+
+{
+  "job_id":"job_1G5a2",
+  "status":"completed",
+  "progress":100,
+  "result_file":"https://cdn.example.com/results/up_job_1G5a2.png",
+  "finished_at":"2025-12-07T12:00:40Z",
+  "model":"real-esrgan-v2-photo",
+  "params":{ "factor":"4x", "denoise":"med" }
+}
+
+
+Admin re-run:
+
+Request: POST /api/v1/admin/jobs/job_1G5a2/requeue with override params { "denoise":"low" }
+
+Response: returns new job id.
+
+Operational acceptance criteria (must be satisfied by implementation)
+
+Public upload flow: upload an image, receive job_id, poll and get completed and a working download link that serves the upscaled image.
+
+Admin login works with seeded credentials abdullah / 231980077, and admin can view job list and requeue a job.
+
+File validation prevents non-image files and enforces max upload size; attempts beyond limit should return 413 Payload Too Large or a 400 with clear message.
+
+Rate limiting protects public endpoints and returns 429 when limit exceeded.
+
+Jobs are executed asynchronously by worker(s) and update job status in DB.
+
+Download URLs are signed/short-lived and not trivially guessable.
+
+All sensitive configuration via env vars; no secrets hard-coded into code.
+
+Deliverable for implementer (instructions to the code generator or developer)
+
+Implement a Flask app with the described API, DB schema, and admin UI routes (server-rendered admin UI is acceptable using Flask templates, or admin UI can be a simple SPA served from static files).
+
+Implement worker processes (Celery or RQ) to process jobs; include a simple CPU fallback model for dev that performs a no-op or simple bilinear upscaling (so QA can run without GPU), while production workers can load GPU models (Real-ESRGAN).
+
+Provide migration script to seed admin account with username abdullah and password 231980077 (hashed).
+
+Provide documentation (README) describing env vars, running dev (Flask dev server + Redis + worker), and switching to production (Docker, Postgres, S3, GPU worker).
+
+Provide example curl commands for upload and job status that can be used to smoke-test the service.
+
+Notes & optional enhancements (implementer choice)
+
+Add user quotas and pricing tiers (free with watermark, paid no-watermark).
+
+Optionally add image preview before and after with slider UI.
+
+Add per-image EXIF preservation option.
+
+Allow batch uploads (ZIP of images) processed as multiple jobs with a batch job aggregate.
+
+Provide per-job download statistics and per-user monthly usage reports.
+
+End of prompt.

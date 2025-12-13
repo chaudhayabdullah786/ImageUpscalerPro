@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Details - ImageUpscalerPro Admin</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>ImageUpscalerPro</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+                <a href="/admin/jobs" class="nav-item active">Jobs</a>
+                <a href="/admin/settings" class="nav-item">Settings</a>
+                <a href="/admin/audit" class="nav-item">Audit Logs</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Job Details</h1>
+                <a href="/admin/jobs" class="btn btn-secondary">&larr; Back to Jobs</a>
+            </div>
+
+            <div class="job-detail-grid">
+                <div class="detail-card">
+                    <h3>Job Information</h3>
+                    <dl class="detail-list">
+                        <dt>Job ID</dt>
+                        <dd>{{ job.job_id }}</dd>
+                        <dt>Status</dt>
+                        <dd><span class="status-badge status-{{ job.status }}">{{ job.status }}</span></dd>
+                        <dt>Progress</dt>
+                        <dd>{{ job.progress }}%</dd>
+                        <dt>Model</dt>
+                        <dd>{{ job.model or 'Not set' }}</dd>
+                        <dt>Worker ID</dt>
+                        <dd>{{ job.worker_id or 'N/A' }}</dd>
+                    </dl>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Timing</h3>
+                    <dl class="detail-list">
+                        <dt>Created</dt>
+                        <dd>{{ job.created_at }}</dd>
+                        <dt>Started</dt>
+                        <dd>{{ job.started_at or 'Not started' }}</dd>
+                        <dt>Finished</dt>
+                        <dd>{{ job.finished_at or 'Not finished' }}</dd>
+                        <dt>Duration</dt>
+                        <dd>{{ job.duration_seconds or 0 }} seconds</dd>
+                    </dl>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Upload Details</h3>
+                    <dl class="detail-list">
+                        <dt>Original Filename</dt>
+                        <dd>{{ job.original_filename or 'Unknown' }}</dd>
+                        <dt>MIME Type</dt>
+                        <dd>{{ job.mime_type or 'Unknown' }}</dd>
+                        <dt>Dimensions</dt>
+                        <dd>{{ job.width or '?' }} x {{ job.height or '?' }} px</dd>
+                        <dt>File Size</dt>
+                        <dd>{{ (job.size_bytes / 1024)|round(2) if job.size_bytes else 0 }} KB</dd>
+                    </dl>
+                </div>
+
+                <div class="detail-card">
+                    <h3>Parameters</h3>
+                    <pre class="code-block">{{ job.params or '{}' }}</pre>
+                </div>
+
+                {% if job.error_message %}
+                <div class="detail-card error-card">
+                    <h3>Error</h3>
+                    <pre class="code-block error">{{ job.error_message }}</pre>
+                </div>
+                {% endif %}
+
+                {% if job.storage_path %}
+                <div class="detail-card preview-card">
+                    <h3>Original Image</h3>
+                    <img src="/uploads/{{ job.storage_path.split('/')[-1] }}" alt="Original" class="preview-image">
+                </div>
+                {% endif %}
+
+                {% if job.result_path %}
+                <div class="detail-card preview-card">
+                    <h3>Result Image</h3>
+                    <img src="/results/{{ job.result_path.split('/')[-1] }}" alt="Result" class="preview-image">
+                    <a href="/results/{{ job.result_path.split('/')[-1] }}" class="btn btn-primary" download>Download</a>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="job-actions">
+                {% if job.status in ['queued', 'running'] %}
+                <button class="btn btn-danger" onclick="cancelJob()">Cancel Job</button>
+                {% endif %}
+                {% if job.status in ['completed', 'failed'] %}
+                <button class="btn btn-primary" onclick="requeueJob()">Requeue Job</button>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function cancelJob() {
+            if (confirm('Are you sure you want to cancel this job?')) {
+                fetch('/api/v1/admin/jobs/{{ job.job_id }}/cancel', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    });
+            }
+        }
+
+        function requeueJob() {
+            if (confirm('Are you sure you want to requeue this job?')) {
+                fetch('/api/v1/admin/jobs/{{ job.job_id }}/requeue', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Job requeued: ' + data.new_job_id);
+                            window.location.href = '/admin/jobs/' + data.new_job_id;
+                        }
+                    });
+            }
+        }
+    </script>
+</body>
+</html>

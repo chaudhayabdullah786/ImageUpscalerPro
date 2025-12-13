@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - ImageUpscalerPro Admin</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-page">
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <h2>ImageUpscalerPro</h2>
+                <p>{{ session.username }}</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin/dashboard" class="nav-item">Dashboard</a>
+                <a href="/admin/jobs" class="nav-item">Jobs</a>
+                <a href="/admin/settings" class="nav-item active">Settings</a>
+                <a href="/admin/audit" class="nav-item">Audit Logs</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="btn btn-logout">Logout</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Settings</h1>
+                <p>Configure system settings and defaults</p>
+            </div>
+
+            <form id="settings-form" class="settings-form">
+                <div class="settings-section">
+                    <h2>Upload Limits</h2>
+                    
+                    <div class="form-group">
+                        <label for="max_upload_size_bytes">Max Upload Size (bytes)</label>
+                        <input type="number" id="max_upload_size_bytes" name="max_upload_size_bytes" 
+                               value="{{ settings.get('max_upload_size_bytes', '15728640') }}">
+                        <small>Default: 15728640 (15 MB)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="allowed_mimes">Allowed MIME Types</label>
+                        <input type="text" id="allowed_mimes" name="allowed_mimes" 
+                               value="{{ settings.get('allowed_mimes', 'image/png,image/jpeg,image/webp,image/tiff') }}">
+                        <small>Comma-separated list</small>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h2>Processing</h2>
+                    
+                    <div class="form-group">
+                        <label for="default_model">Default Model</label>
+                        <select id="default_model" name="default_model">
+                            {% for model in models %}
+                            <option value="{{ model.name }}" {% if settings.get('default_model') == model.name %}selected{% endif %}>
+                                {{ model.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h2>Rate Limiting</h2>
+                    
+                    <div class="form-group">
+                        <label for="rate_limit_per_minute">Rate Limit (per minute)</label>
+                        <input type="number" id="rate_limit_per_minute" name="rate_limit_per_minute" 
+                               value="{{ settings.get('rate_limit_per_minute', '10') }}">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h2>Storage</h2>
+                    
+                    <div class="form-group">
+                        <label for="retention_days">Retention Days</label>
+                        <input type="number" id="retention_days" name="retention_days" 
+                               value="{{ settings.get('retention_days', '30') }}">
+                        <small>Files older than this will be deleted</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </div>
+            </form>
+
+            <div class="settings-section models-section">
+                <h2>Available Models</h2>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>GPU Required</th>
+                            <th>Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for model in models %}
+                        <tr>
+                            <td>{{ model.name }}</td>
+                            <td>{{ model.type }}</td>
+                            <td>{{ 'Yes' if model.gpu_required else 'No' }}</td>
+                            <td>{{ model.note or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.getElementById('settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            
+            fetch('/api/v1/admin/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Settings saved successfully!');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

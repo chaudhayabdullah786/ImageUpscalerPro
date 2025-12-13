@@ -1,0 +1,132 @@
+We are looking for an experienced front-end + basic backend developer to create a single-page website (HTML/CSS/Minimal JS) along with a simple Admin Panel for managing website content.
+The entire website must be fast, lightweight, responsive, and built from scratch without WordPress, templates, or CMS platforms.
+
+📌 Scope of Work
+1. Front-End (Main Website)
+
+Develop a single-page responsive website using pure HTML5 + CSS3 (only minimal JavaScript where absolutely needed).
+
+Build a clean, modern, mobile-friendly design based on our provided structure or mockup.
+
+Ensure the website loads extremely fast, well-optimized, and SEO-friendly.
+
+2. Admin Panel
+
+A simple, lightweight backend to manage website content.
+
+Admin Panel Features:
+
+Secure login (username/password)
+
+Edit/update website text (headings, paragraphs, sections)
+
+Upload and update images (optional)
+
+Add/remove small content blocks (optional)
+
+All changes should reflect instantly on the website
+
+Clean UI and easy to manage
+
+Backend can be built using one of the following (YOU choose):
+
+Flask (Python)
+
+PHP (Lightweight)
+
+Node.js (Express)
+(No heavy frameworks, no CMS, no WordPress)
+
+3. Work Process (Step-by-Step Required)
+
+The developer must follow these steps:
+
+Planning & Requirement Confirmation
+
+Review our design needs
+
+Confirm functionality and admin panel structure
+
+Provide layout wireframe (simple sketch is fine)
+
+Front-End Development
+
+Build the HTML structure
+
+Style with clean and modular CSS
+
+Create responsive layouts for Mobile / Tablet / Desktop
+
+Add minimal JavaScript (only if needed)
+
+Admin Panel Setup
+
+Create database or simple storage (JSON/SQLite/MySQL)
+
+Build login system
+
+Create content editing forms
+
+Connect admin panel data to the front-end
+
+Integration
+
+Ensure admin modifications reflect instantly on the live page
+
+Optimize loading speed and performance
+
+Testing
+
+Test responsiveness on all screen sizes
+
+Test admin login functionality
+
+Test content update functionality
+
+Test cross-browser compatibility (Chrome, Firefox, Edge)
+
+Ensure JS, CSS, and HTML are W3C validated
+
+Revisions & Delivery
+
+Up to 3 rounds of revisions
+
+Final delivery of all clean, organized source files
+
+Optional documentation for future updates
+
+📌 Requirements for Developer
+
+Expert skills in HTML5, CSS3
+
+Strong understanding of responsive, mobile-first design
+
+Ability to create lightweight, fast websites
+
+Experience building simple admin panels (Flask/PHP/Node)
+
+Clean code structure, no unnecessary libraries
+
+Ability to follow a structured, step-by-step workflow
+
+📌 Deliverables
+
+Fully functional single-page website
+
+Fully functional admin panel
+
+All source code (HTML, CSS, JS, backend files, database)
+
+3 revision rounds
+
+Optional: short documentation
+
+📌 To Apply, Please Include
+
+Examples of HTML/CSS websites built from scratch (no CMS)
+
+Examples of any admin panels you’ve built
+
+Your estimated delivery timeline
+
+Your best price/offer

@@ -205,10 +205,11 @@ def process_image(job_id):
         
         # Check if compression is requested
         compress = params.get('compress', 'false') == 'true'
+        convert_to_pdf = params.get('convert_to_pdf', 'false') == 'true'
         quality = int(params.get('quality', '80'))
 
         if factor > 1:
-            upscaled = img.resize((new_width, new_height), Image.LANCZOS)
+            upscaled = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         else:
             upscaled = img
         
@@ -222,10 +223,20 @@ def process_image(job_id):
                 upscaled = upscaled.filter(ImageFilter.GaussianBlur(radius=blur_radius))
                 upscaled = upscaled.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
         
-        result_filename = f"processed_{job_id}.jpg" if compress else f"upscaled_{job_id}.png"
+        if convert_to_pdf:
+            result_filename = f"converted_{job_id}.pdf"
+        elif compress:
+            result_filename = f"processed_{job_id}.jpg"
+        else:
+            result_filename = f"upscaled_{job_id}.png"
+            
         result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
         
-        if compress:
+        if convert_to_pdf:
+            if upscaled.mode in ('RGBA', 'LA'):
+                upscaled = upscaled.convert('RGB')
+            upscaled.save(result_path, 'PDF', resolution=100.0)
+        elif compress:
             if upscaled.mode in ('RGBA', 'LA'):
                 upscaled = upscaled.convert('RGB')
             upscaled.save(result_path, 'JPEG', quality=quality, optimize=True)
@@ -292,12 +303,13 @@ def api_upload():
     denoise = request.form.get('denoise', 'none')
     refine_faces = request.form.get('refine_faces', 'false') == 'true'
     compress = request.form.get('compress', 'false') == 'true'
+    convert_to_pdf = request.form.get('convert_to_pdf', 'false') == 'true'
     quality = request.form.get('quality', '80')
     
     upload_id = str(uuid.uuid4())
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     
-    filename = secure_filename(file.filename)
+    filename = secure_filename(file.filename or "image.png")
     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
     storage_filename = f"{upload_id}.{ext}"
     storage_path = os.path.join(app.config['UPLOAD_FOLDER'], storage_filename)
@@ -327,6 +339,7 @@ def api_upload():
         'denoise': denoise,
         'refine_faces': refine_faces,
         'compress': compress,
+        'convert_to_pdf': convert_to_pdf,
         'quality': quality
     }
     
@@ -421,7 +434,7 @@ def admin_login():
         cursor.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
         user = cursor.fetchone()
         
-        if user and check_password_hash(user['password_hash'], password):
+        if user and check_password_hash(user['password_hash'], password or ""):
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['role'] = user['role']

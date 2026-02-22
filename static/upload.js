@@ -102,6 +102,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (compressCheckbox) {
             formData.append('compress', compressCheckbox.checked);
         }
+        const pdfCheckbox = document.getElementById('convert_to_pdf');
+        if (pdfCheckbox) {
+            formData.append('convert_to_pdf', pdfCheckbox.checked);
+        }
         const qualityInput = document.getElementById('quality');
         if (qualityInput) {
             formData.append('quality', qualityInput.value);

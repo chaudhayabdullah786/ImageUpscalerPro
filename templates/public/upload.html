@@ -46,6 +46,10 @@
                         <label>Upscale Factor</label>
                         <div class="radio-group">
                             <label class="radio-option">
+                                <input type="radio" name="factor" value="1x">
+                                <span>1x (Compression Only)</span>
+                            </label>
+                            <label class="radio-option">
                                 <input type="radio" name="factor" value="2x" checked>
                                 <span>2x</span>
                             </label>
@@ -54,6 +58,22 @@
                                 <span>4x</span>
                             </label>
                         </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Compression</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="compress" id="compress">
+                                <span>Enable Compression (JPG)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="option-group" id="quality-group" style="display: none;">
+                        <label>JPEG Quality (1-100)</label>
+                        <input type="range" name="quality" id="quality" min="1" max="100" value="80">
+                        <span id="quality-value">80</span>
                     </div>
 
                     <div class="option-group">

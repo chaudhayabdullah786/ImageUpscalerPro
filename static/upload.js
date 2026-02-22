@@ -97,6 +97,15 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('factor', document.querySelector('input[name="factor"]:checked').value);
         formData.append('preset', document.getElementById('preset').value);
         formData.append('denoise', document.getElementById('denoise').value);
+        
+        const compressCheckbox = document.getElementById('compress');
+        if (compressCheckbox) {
+            formData.append('compress', compressCheckbox.checked);
+        }
+        const qualityInput = document.getElementById('quality');
+        if (qualityInput) {
+            formData.append('quality', qualityInput.value);
+        }
 
         submitBtn.querySelector('.btn-text').style.display = 'none';
         submitBtn.querySelector('.btn-loading').style.display = 'inline';
@@ -147,5 +156,22 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = false;
         uploadProgress.style.display = 'none';
         progressFill.style.width = '0%';
+    }
+
+    const compressCheckbox = document.getElementById('compress');
+    const qualityGroup = document.getElementById('quality-group');
+    const qualityInput = document.getElementById('quality');
+    const qualityValue = document.getElementById('quality-value');
+
+    if (compressCheckbox) {
+        compressCheckbox.addEventListener('change', function() {
+            qualityGroup.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+
+    if (qualityInput) {
+        qualityInput.addEventListener('input', function() {
+            qualityValue.textContent = this.value;
+        });
     }
 });

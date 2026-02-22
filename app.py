@@ -110,6 +110,10 @@ def init_db():
             ('abdullah', 'admin@imageupscaler.pro', generate_password_hash('231980077'), 'admin')
         )
     
+    # Add compression setting if not exists
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ('enable_compression', 'true'))
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ('default_compression_quality', '80'))
+    
     default_settings = {
         'max_upload_size_bytes': '15728640',
         'allowed_mimes': 'image/png,image/jpeg,image/webp,image/tiff',
@@ -199,7 +203,14 @@ def process_image(job_id):
         cursor.execute("UPDATE jobs SET progress = 25 WHERE job_id = ?", (job_id,))
         db.commit()
         
-        upscaled = img.resize((new_width, new_height), Image.LANCZOS)
+        # Check if compression is requested
+        compress = params.get('compress', 'false') == 'true'
+        quality = int(params.get('quality', '80'))
+
+        if factor > 1:
+            upscaled = img.resize((new_width, new_height), Image.LANCZOS)
+        else:
+            upscaled = img
         
         cursor.execute("UPDATE jobs SET progress = 75 WHERE job_id = ?", (job_id,))
         db.commit()
@@ -211,9 +222,15 @@ def process_image(job_id):
                 upscaled = upscaled.filter(ImageFilter.GaussianBlur(radius=blur_radius))
                 upscaled = upscaled.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
         
-        result_filename = f"upscaled_{job_id}.png"
+        result_filename = f"processed_{job_id}.jpg" if compress else f"upscaled_{job_id}.png"
         result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
-        upscaled.save(result_path, 'PNG', optimize=True)
+        
+        if compress:
+            if upscaled.mode in ('RGBA', 'LA'):
+                upscaled = upscaled.convert('RGB')
+            upscaled.save(result_path, 'JPEG', quality=quality, optimize=True)
+        else:
+            upscaled.save(result_path, 'PNG', optimize=True)
         
         finished_at = datetime.utcnow()
         started_at = datetime.fromisoformat(job['started_at']) if job['started_at'] else finished_at
@@ -261,13 +278,21 @@ def api_upload():
     if not allowed_file(file.filename):
         return jsonify({'error': 'File type not allowed'}), 400
     
-    factor = request.form.get('factor', '2x')
-    if factor not in ['2x', '4x']:
+    factor_str = request.form.get('factor', '2x')
+    if factor_str == '1x':
+        factor = 1
+    elif factor_str == '2x':
+        factor = 2
+    elif factor_str == '4x':
+        factor = 4
+    else:
         return jsonify({'error': 'Invalid upscale factor'}), 400
     
     preset = request.form.get('preset', 'standard')
     denoise = request.form.get('denoise', 'none')
     refine_faces = request.form.get('refine_faces', 'false') == 'true'
+    compress = request.form.get('compress', 'false') == 'true'
+    quality = request.form.get('quality', '80')
     
     upload_id = str(uuid.uuid4())
     job_id = f"job_{uuid.uuid4().hex[:12]}"
@@ -300,7 +325,9 @@ def api_upload():
         'factor': factor,
         'preset': preset,
         'denoise': denoise,
-        'refine_faces': refine_faces
+        'refine_faces': refine_faces,
+        'compress': compress,
+        'quality': quality
     }
     
     cursor.execute('''

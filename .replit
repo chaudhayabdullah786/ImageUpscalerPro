@@ -12,27 +12,23 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Flask Admin Panel"
+args = "Image Compressor & Upscaler"
 
 [[workflows.workflow]]
-name = "Flask Admin Panel"
+name = "Image Compressor & Upscaler"
 author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python app.py"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 43899
-externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
